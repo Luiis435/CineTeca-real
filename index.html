@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CineTeca</title>
+    <title>CineTeca - Login</title>
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, query, where, onSnapshot, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyB46-sCSiJ1HSMARLY1aBgECu2yxnOKYSQ",
@@ -20,32 +20,51 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const MASTER_PASS = "cinetecaadm";
 
         let currentProfile = JSON.parse(localStorage.getItem('ct_profile')) || null;
-        let allVideos = [];
 
-        window.checkLogin = () => {
-            const passInput = document.getElementById('master-pass').value;
-            if(passInput === MASTER_PASS) {
-                sessionStorage.setItem('isLogged', 'true');
-                document.getElementById('auth-screen').style.display = 'none';
-                document.getElementById('profile-screen').style.display = 'flex';
-            } else { 
-                alert("Senha incorreta!"); 
+        // --- LÓGICA DE LOGIN E REGISTRO ---
+        window.toggleAuth = () => {
+            const title = document.getElementById('auth-title');
+            const btn = document.getElementById('auth-btn');
+            const link = document.getElementById('auth-link');
+            if (btn.innerText === 'ENTRAR') {
+                title.innerText = 'CRIAR CONTA';
+                btn.innerText = 'REGISTRAR';
+                link.innerText = 'Já tem conta? Entrar';
+            } else {
+                title.innerText = 'LOGIN';
+                btn.innerText = 'ENTRAR';
+                link.innerText = 'Novo por aqui? Registre-se';
             }
         };
 
-        window.addEventListener('load', () => {
-            if(sessionStorage.getItem('isLogged') === 'true') {
-                document.getElementById('auth-screen').style.display = 'none';
-                if(!currentProfile) {
+        window.handleAuth = async () => {
+            const user = document.getElementById('user-email').value;
+            const pass = document.getElementById('user-pass').value;
+            const btn = document.getElementById('auth-btn');
+
+            if(!user || !pass) return alert("Preencha todos os campos!");
+
+            if (btn.innerText === 'REGISTRAR') {
+                // Criar nova conta
+                await addDoc(collection(db, "usuarios"), { user, pass });
+                alert("Conta criada! Agora faça login.");
+                toggleAuth();
+            } else {
+                // Fazer Login
+                const q = query(collection(db, "usuarios"), where("user", "==", user), where("pass", "==", pass));
+                const querySnapshot = await getDocs(q);
+                
+                if (!querySnapshot.empty || (user === "admin" && pass === "cinetecaadm")) {
+                    sessionStorage.setItem('isLogged', 'true');
+                    document.getElementById('auth-screen').style.display = 'none';
                     document.getElementById('profile-screen').style.display = 'flex';
                 } else {
-                    selectProfile(currentProfile.name, currentProfile.type);
+                    alert("Usuário ou senha incorretos!");
                 }
             }
-        });
+        };
 
         window.selectProfile = (name, type) => {
             currentProfile = { name, type };
@@ -61,65 +80,90 @@
             if (type === 'infantil') q = query(collection(db, "videos"), where("rating", "==", "infantil"), orderBy("createdAt", "desc"));
 
             onSnapshot(q, (snapshot) => {
-                allVideos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                displayVideos(allVideos);
-            });
-        }
-
-        function displayVideos(list) {
-            const shelf = document.getElementById('shelf');
-            shelf.innerHTML = "";
-            list.forEach((v) => {
-                shelf.innerHTML += `
-                    <div class="movie-card" onclick="openPlayer('${v.url}', '${v.videoType}')">
-                        <img src="${v.thumb}">
-                        <h3>${v.title}</h3>
-                    </div>`;
+                const shelf = document.getElementById('shelf');
+                shelf.innerHTML = "";
+                snapshot.forEach(doc => {
+                    const v = doc.data();
+                    shelf.innerHTML += `
+                        <div class="movie-card" onclick="openPlayer('${v.url}', '${v.videoType}')">
+                            <img src="${v.thumb}">
+                            <h3>${v.title}</h3>
+                        </div>`;
+                });
             });
         }
 
         window.openPlayer = (url, type) => {
             const target = document.getElementById('playerTarget');
-            target.innerHTML = "";
-            
-            // Força HTTPS para evitar bloqueio de conteúdo misto
             const safeUrl = url.replace('http://', 'https://');
-
-            if (type === 'iframe' || safeUrl.includes('superembed')) {
-                target.innerHTML = `
-                    <iframe src="${safeUrl}" 
-                        style="width:100%; height:100%; border:none;" 
-                        allowfullscreen="true" 
-                        allow="autoplay; fullscreen; encrypted-media"
-                        sandbox="allow-forms allow-scripts allow-pointer-lock allow-same-origin allow-top-navigation">
-                    </iframe>`;
-            } else {
-                target.innerHTML = `<video src="${safeUrl}" controls autoplay style="width:100%; height:100%;"></video>`;
-            }
+            target.innerHTML = `<iframe src="${safeUrl}" style="width:100%; height:100%; border:none;" allowfullscreen sandbox="allow-forms allow-scripts allow-same-origin allow-top-navigation"></iframe>`;
             document.getElementById('playerModal').style.display = 'flex';
         };
 
-        window.logout = () => { 
-            sessionStorage.clear(); 
-            localStorage.clear(); 
-            location.reload(); 
-        };
-        
-        window.toggleMenu = () => { document.getElementById('side-menu').classList.toggle('active'); };
+        window.logout = () => { sessionStorage.clear(); localStorage.clear(); location.reload(); };
     </script>
 
     <style>
-        :root { --accent: #E50914; --bg: #000; }
-        body { background: var(--bg); color: white; margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow-x: hidden; }
+        :root { --accent: #E50914; }
+        body { background: #000; color: white; margin: 0; font-family: 'Arial', sans-serif; }
         
-        #auth-screen, #profile-screen { position: fixed; inset: 0; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; }
+        /* TELA DE LOGIN ESTILIZADA */
+        #auth-screen { position: fixed; inset: 0; background: url('https://assets.nflxext.com/ffe/siteui/vlv3/f841d4c7-10e1-40af-bca1-07e3f8eb14af/61661664-5a3c-4e8c-986b-f472855146c6/BR-pt-20220502-popsignuptwoweeks-perspective_alpha_website_medium.jpg'); background-size: cover; display: flex; justify-content: center; align-items: center; z-index: 2000; }
+        .auth-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.6); }
+        .auth-card { position: relative; background: rgba(0,0,0,0.75); padding: 50px; border-radius: 8px; width: 350px; text-align: left; }
         
-        .card-login { background: #141414; padding: 40px; border-radius: 8px; text-align: center; width: 300px; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 4px; border: 1px solid #333; background: #333; color: white; box-sizing: border-box; }
-        .btn-red { width: 100%; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 4px; border: none; background: #333; color: white; box-sizing: border-box; }
+        .btn-main { width: 100%; padding: 15px; background: var(--accent); color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 20px; }
+        #auth-link { color: #b3b3b3; font-size: 0.9rem; cursor: pointer; display: block; margin-top: 15px; text-align: center; }
 
-        header { padding: 10px 20px; display: flex; align-items: center; background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%); position: fixed; width: 100%; z-index: 100; box-sizing: border-box; }
-        .movie-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 15px; padding: 80px 20px 20px; }
-        .movie-card { cursor: pointer; transition: transform 0.2s; }
-        .movie-card:hover { transform: scale(1.05); }
-        .movie-card img {
+        /* PERFIS E CONTEÚDO */
+        #profile-screen { position: fixed; inset: 0; background: #000; display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 1500; }
+        header { padding: 15px; display: flex; align-items: center; background: #000; position: fixed; width: 100%; z-index: 100; box-sizing: border-box; }
+        .movie-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 15px; padding: 80px 20px; }
+        .movie-card img { width: 100%; aspect-ratio: 2/3; border-radius: 4px; }
+        .modal { display: none; position: fixed; inset: 0; background: #000; z-index: 3000; }
+    </style>
+</head>
+<body>
+
+    <div id="auth-screen">
+        <div class="auth-overlay"></div>
+        <div class="auth-card">
+            <h1 id="auth-title" style="margin-bottom: 20px;">LOGIN</h1>
+            <input type="text" id="user-email" placeholder="Usuário ou Email">
+            <input type="password" id="user-pass" placeholder="Senha">
+            <button class="btn-main" id="auth-btn" onclick="handleAuth()">ENTRAR</button>
+            <span id="auth-link" onclick="toggleAuth()">Novo por aqui? Registre-se</span>
+        </div>
+    </div>
+
+    <div id="profile-screen">
+        <h2>Quem está assistindo?</h2>
+        <div style="display:flex; gap:30px; margin-top:30px;">
+            <div onclick="selectProfile('Luis', 'adulto')" style="text-align:center; cursor:pointer">
+                <div style="width:100px; height:100px; background:#1e88e5; border-radius:4px; font-size:3rem; display:flex; align-items:center; justify-content:center">L</div>
+                <p>Luis</p>
+            </div>
+            <div onclick="selectProfile('Kids', 'infantil')" style="text-align:center; cursor:pointer">
+                <div style="width:100px; height:100px; background:#ffca28; border-radius:4px; font-size:3rem; display:flex; align-items:center; justify-content:center">K</div>
+                <p>Kids</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-content" style="display:none">
+        <header>
+            <div style="color:var(--accent); font-weight:bold; font-size:1.5rem; margin-right:20px">C</div>
+            <div id="current-user-name" style="flex:1"></div>
+            <button onclick="logout()" style="background:none; border:none; color:white; cursor:pointer">Sair</button>
+        </header>
+        <div class="movie-row" id="shelf"></div>
+    </div>
+
+    <div id="playerModal" class="modal">
+        <span onclick="document.getElementById('playerModal').style.display='none'; document.getElementById('playerTarget').innerHTML=''" style="position:absolute; top:20px; right:20px; font-size:2rem; cursor:pointer; color:white; z-index:4000">✕</span>
+        <div id="playerTarget" style="width:100%; height:100%"></div>
+    </div>
+
+</body>
+</html>
