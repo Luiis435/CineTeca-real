@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CineTeca Premium</title>
+    <title>CineTeca</title>
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, onSnapshot, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        import { getAuth, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyB46-sCSiJ1HSMARLY1aBgECu2yxnOKYSQ",
@@ -21,45 +20,26 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const auth = getAuth(app);
-        const provider = new GoogleAuthProvider();
+        const MASTER_PASS = "cinetecaadm";
 
         let currentProfile = JSON.parse(localStorage.getItem('ct_profile')) || null;
-        let allVideos = []; // Cache para a pesquisa rápida
+        let allVideos = [];
 
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
+        window.checkLogin = () => {
+            if(document.getElementById('master-pass').value === MASTER_PASS) {
+                sessionStorage.setItem('isLogged', 'true');
+                document.getElementById('auth-screen').style.display = 'none';
+                showProfileSelection();
+            } else { alert("Senha incorreta!"); }
+        };
+
+        window.addEventListener('load', () => {
+            if(sessionStorage.getItem('isLogged') === 'true') {
                 document.getElementById('auth-screen').style.display = 'none';
                 if(!currentProfile) showProfileSelection();
                 else selectProfile(currentProfile.name, currentProfile.type);
-            } else {
-                document.getElementById('auth-screen').style.display = 'flex';
-                document.getElementById('app-content').style.display = 'none';
             }
         });
-
-        window.handleAuth = async (mode) => {
-            const email = document.getElementById(mode === 'signup' ? 'reg-email' : 'auth-email').value;
-            const pass = document.getElementById(mode === 'signup' ? 'reg-pass' : 'auth-pass').value;
-            try {
-                if(mode === 'signup') await createUserWithEmailAndPassword(auth, email, pass);
-                else await signInWithEmailAndPassword(auth, email, pass);
-            } catch (e) { alert("Erro na autenticação."); }
-        };
-
-        window.loginGoogle = () => signInWithPopup(auth, provider);
-        window.logout = () => { signOut(auth); localStorage.removeItem('ct_profile'); location.reload(); };
-
-        window.toggleSettings = () => {
-            document.getElementById('side-menu').classList.toggle('active');
-            document.getElementById('menu-overlay').classList.toggle('active');
-        };
-
-        window.showProfileSelection = () => {
-            document.getElementById('profile-screen').style.display = 'flex';
-            document.getElementById('app-content').style.display = 'none';
-            toggleSettings();
-        };
 
         window.selectProfile = (name, type) => {
             currentProfile = { name, type };
@@ -70,7 +50,6 @@
             renderLibrary(type);
         };
 
-        // PESQUISA EM TEMPO REAL
         window.searchVideos = (term) => {
             const filtered = allVideos.filter(v => v.title.toLowerCase().includes(term.toLowerCase()));
             displayVideos(filtered);
@@ -100,109 +79,73 @@
 
         window.openPlayer = (url, type) => {
             const target = document.getElementById('playerTarget');
-            target.innerHTML = (type === 'file') ? `<video src="${url}" controls autoplay style="width:100%"></video>` : `<iframe src="${url}" frameborder="0" allowfullscreen autoplay></iframe>`;
+            target.innerHTML = "";
+            if (type === 'iframe' || url.includes('superembed')) {
+                target.innerHTML = `<iframe src="${url}" style="width:100%; height:100%; border:none;" allowfullscreen allow="autoplay"></iframe>`;
+            } else {
+                target.innerHTML = `<video src="${url}" controls autoplay style="width:100%; max-height:80vh;"></video>`;
+            }
             document.getElementById('playerModal').style.display = 'flex';
         };
+
+        window.logout = () => { sessionStorage.clear(); localStorage.clear(); location.reload(); };
+        window.toggleMenu = () => { document.getElementById('side-menu').classList.toggle('active'); };
     </script>
 
     <style>
         :root { --accent: #E50914; --bg: #000; }
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
-        body { background: var(--bg); color: white; }
-
-        /* Login & Profiles (Mesmos estilos anteriores) */
-        #auth-screen { min-height: 100vh; display: flex; justify-content: center; align-items: center; background: #111; }
-        .auth-box { width: 100%; max-width: 380px; background: rgba(0,0,0,0.8); padding: 40px; border-radius: 8px; }
-        input { width: 100%; height: 50px; background: #333; border: none; color: white; padding: 0 15px; margin-bottom: 15px; border-radius: 4px; }
-        .btn-red { width: 100%; height: 50px; background: var(--accent); color: white; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
-        
-        #profile-screen { height: 100vh; display: none; flex-direction: column; justify-content: center; align-items: center; }
-        .avatar-lg { width: 100px; height: 100px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; margin-bottom: 10px; cursor: pointer; }
-
-        /* Header com Search */
-        header { padding: 15px 5%; display: flex; justify-content: space-between; align-items: center; position: fixed; width: 100%; z-index: 100; background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent); gap: 15px; }
-        .search-container { flex: 1; max-width: 400px; position: relative; }
-        .search-input { width: 100%; height: 35px; background: rgba(255,255,255,0.15); border: 1px solid transparent; border-radius: 20px; padding: 0 15px 0 35px; color: white; font-size: 14px; transition: 0.3s; }
-        .search-input:focus { background: rgba(255,255,255,0.25); outline: none; border-color: rgba(255,255,255,0.3); }
-        .search-icon { position: absolute; left: 12px; top: 9px; font-size: 14px; color: #aaa; }
-
-        .logo { color: var(--accent); font-size: 1.4rem; font-weight: 900; }
-        .user-btn { min-width: 34px; height: 34px; background: #1e88e5; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-weight: bold; cursor: pointer; }
-
-        /* Grid */
-        .hero { padding: 90px 5% 20px; }
-        .movie-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 15px; }
-        .movie-card { cursor: pointer; }
-        .poster-wrapper { width: 100%; aspect-ratio: 2/3; border-radius: 4px; overflow: hidden; background: #222; }
-        .poster-wrapper img { width: 100%; height: 100%; object-fit: cover; }
-        .movie-info h3 { font-size: 0.7rem; margin-top: 8px; color: #ccc; text-align: center; }
-
-        /* Side Menu */
-        #menu-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 900; display: none; }
-        #menu-overlay.active { display: block; }
-        .side-menu { position: fixed; right: -300px; top: 0; width: 280px; height: 100%; background: #181818; z-index: 1000; transition: 0.4s; padding: 40px 25px; }
+        body { background: var(--bg); color: white; margin: 0; font-family: sans-serif; overflow-x: hidden; }
+        #auth-screen, #profile-screen { position: fixed; inset: 0; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; }
+        .login-box { width: 300px; text-align: center; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 5px; border: 1px solid #333; background: #222; color: white; box-sizing: border-box; }
+        header { padding: 15px; display: flex; align-items: center; background: rgba(0,0,0,0.9); position: fixed; width: 100%; z-index: 100; gap: 10px; }
+        .search-container { flex: 1; position: relative; }
+        .movie-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; padding: 80px 15px 20px; }
+        .movie-card img { width: 100%; aspect-ratio: 2/3; object-fit: cover; border-radius: 4px; }
+        .movie-info h3 { font-size: 0.7rem; text-align: center; color: #888; }
+        .modal { display: none; position: fixed; inset: 0; background: #000; z-index: 2000; justify-content: center; align-items: center; }
+        .side-menu { position: fixed; right: -250px; top: 0; width: 250px; height: 100%; background: #111; z-index: 1500; transition: 0.3s; padding: 20px; }
         .side-menu.active { right: 0; }
-        .menu-link { padding: 15px 0; display: block; color: #ccc; cursor: pointer; border-bottom: 1px solid #222; }
-
-        /* Player */
-        .modal { display: none; position: fixed; inset: 0; background: black; z-index: 2000; flex-direction: column; justify-content: center; }
     </style>
 </head>
 <body>
 
-    <div id="menu-overlay" onclick="toggleSettings()"></div>
-    <div class="side-menu" id="side-menu">
-        <div style="font-size: 1.5rem; margin-bottom: 20px;" onclick="toggleSettings()">✕</div>
-        <div class="menu-link" onclick="showProfileSelection()">🔄 Mudar Perfil</div>
-        <div class="menu-link" style="color: var(--accent); margin-top: 30px;" onclick="logout()">🚪 Sair da Conta</div>
-    </div>
-
     <div id="auth-screen">
-        <div class="auth-box" id="login-sec">
-            <h1 style="margin-bottom:20px">Entrar</h1>
-            <input type="email" id="auth-email" placeholder="E-mail">
-            <input type="password" id="auth-pass" placeholder="Senha">
-            <button class="btn-red" onclick="handleAuth('login')">ENTRAR</button>
-            <button onclick="loginGoogle()" style="width:100%; margin-top:10px; height:50px; border-radius:4px; border:none; font-weight:bold">GOOGLE</button>
-            <p style="margin-top:20px; text-align:center; font-size:0.9rem" onclick="document.getElementById('login-sec').style.display='none'; document.getElementById('reg-sec').style.display='block'">Criar conta</p>
-        </div>
-        <div class="auth-box" id="reg-sec" style="display:none">
-            <h1 style="margin-bottom:20px">Registo</h1>
-            <input type="email" id="reg-email" placeholder="E-mail">
-            <input type="password" id="reg-pass" placeholder="Senha">
-            <button class="btn-red" onclick="handleAuth('signup')">CRIAR CONTA</button>
-            <p style="margin-top:20px; text-align:center" onclick="location.reload()">Voltar</p>
+        <div class="login-box">
+            <h1 style="color:var(--accent)">CINETECA</h1>
+            <input type="password" id="master-pass" placeholder="Senha de Acesso">
+            <button onclick="checkLogin()" style="width:100%; padding:12px; background:var(--accent); color:white; border:none; border-radius:5px; font-weight:bold;">ENTRAR</button>
         </div>
     </div>
 
-    <div id="profile-screen">
-        <h1>Quem está a ver?</h1>
-        <div style="display:flex; gap:20px; margin-top:30px">
-            <div onclick="selectProfile('Luis', 'adulto')"><div class="avatar-lg" style="background:#1e88e5">👤</div><p>Luis</p></div>
-            <div onclick="selectProfile('Kids', 'infantil')"><div class="avatar-lg" style="background:#ffca28">🐣</div><p>Kids</p></div>
+    <div id="profile-screen" style="display:none">
+        <h2>Quem está assistindo?</h2>
+        <div style="display:flex; gap:20px; margin-top:20px">
+            <div onclick="selectProfile('Luis', 'adulto')" style="text-align:center"><div style="width:80px; height:80px; background:#1e88e5; border-radius:10px; font-size:2rem; display:flex; align-items:center; justify-content:center">L</div><p>Luis</p></div>
+            <div onclick="selectProfile('Kids', 'infantil')" style="text-align:center"><div style="width:80px; height:80px; background:#ffca28; border-radius:10px; font-size:2rem; display:flex; align-items:center; justify-content:center">K</div><p>Kids</p></div>
         </div>
     </div>
 
-    <div id="app-content" style="display: none;">
+    <div id="app-content" style="display:none">
         <header>
-            <div class="logo">C</div>
-            
+            <div style="color:var(--accent); font-weight:900; font-size:1.5rem">C</div>
             <div class="search-container">
-                <span class="search-icon">🔍</span>
-                <input type="text" class="search-input" placeholder="Procurar filmes..." oninput="searchVideos(this.value)">
+                <input type="text" placeholder="Pesquisar..." oninput="searchVideos(this.value)" style="margin:0; height:35px; font-size:0.9rem">
             </div>
-
-            <div class="user-btn" id="current-user-img" onclick="toggleSettings()">?</div>
+            <div id="current-user-img" onclick="toggleMenu()" style="width:35px; height:35px; background:#1e88e5; border-radius:5px; text-align:center; line-height:35px; font-weight:bold; cursor:pointer">?</div>
         </header>
+        <div class="movie-row" id="shelf"></div>
+    </div>
 
-        <main class="hero">
-            <div class="movie-row" id="shelf"></div>
-        </main>
+    <div id="side-menu" class="side-menu">
+        <h3 onclick="toggleMenu()">✕ Fechar</h3>
+        <p onclick="location.reload()" style="margin-top:30px; cursor:pointer">🔄 Trocar Perfil</p>
+        <p onclick="logout()" style="color:var(--accent); cursor:pointer">🚪 Sair</p>
     </div>
 
     <div id="playerModal" class="modal">
-        <span onclick="document.getElementById('playerModal').style.display='none'; document.getElementById('playerTarget').innerHTML=''" style="position:absolute; top:25px; right:25px; font-size:2rem; cursor:pointer">✕</span>
-        <div id="playerTarget"></div>
+        <span onclick="document.getElementById('playerModal').style.display='none'; document.getElementById('playerTarget').innerHTML=''" style="position:absolute; top:20px; right:20px; font-size:2rem; cursor:pointer; color:white; z-index:3000">✕</span>
+        <div id="playerTarget" style="width:100%; height:100%"></div>
     </div>
 
 </body>
