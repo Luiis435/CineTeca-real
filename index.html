@@ -93,11 +93,29 @@
             });
         }
 
-        window.openPlayer = (url, type) => {
+                window.openPlayer = (url, type) => {
             const target = document.getElementById('playerTarget');
-            const safeUrl = url.replace('http://', 'https://');
-            target.innerHTML = `<iframe src="${safeUrl}" style="width:100%; height:100%; border:none;" allowfullscreen sandbox="allow-forms allow-scripts allow-same-origin allow-top-navigation"></iframe>`;
+            target.innerHTML = "";
+            
+            // Força HTTPS e limpa espaços
+            const safeUrl = url.replace('http://', 'https://').trim();
+
+            if (type === 'iframe' || safeUrl.includes('superembed')) {
+                // Removido o atributo 'sandbox' restritivo para permitir que o player carregue os servidores de vídeo
+                target.innerHTML = `
+                    <iframe src="${safeUrl}" 
+                        style="width:100%; height:100%; border:none;" 
+                        allowfullscreen="true" 
+                        webkitallowfullscreen="true" 
+                        mozallowfullscreen="true"
+                        allow="autoplay; fullscreen; encrypted-media; picture-in-picture">
+                    </iframe>`;
+            } else {
+                target.innerHTML = `<video src="${safeUrl}" controls autoplay style="width:100%; height:100%;"></video>`;
+            }
             document.getElementById('playerModal').style.display = 'flex';
+        };
+
         };
 
         window.logout = () => { sessionStorage.clear(); localStorage.clear(); location.reload(); };
